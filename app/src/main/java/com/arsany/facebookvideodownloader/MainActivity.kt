@@ -108,11 +108,11 @@ class MainActivity : AppCompatActivity() {
 
         intent?.clipData?.let { clip ->
             for (i in 0 until clip.itemCount) {
-                clip.itemAt(i).text?.toString()?.let {
+                clip.getItemAt(i).text?.toString()?.let {
                     candidates.add(it)
                 }
 
-                clip.itemAt(i).uri?.toString()?.let {
+                clip.getItemAt(i).uri?.toString()?.let {
                     candidates.add(it)
                 }
             }
