@@ -11,6 +11,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -71,10 +72,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun receiveIntent(intent: Intent?) {
-        val incoming = when (intent?.action) {
+        val raw = when (intent?.action) {
             Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
             else -> intent?.dataString
         }?.trim()
+
+        val incoming = raw?.let {
+            Regex("""https?://[^\\s]+""").find(it)?.value?.trimEnd('.', ',', ')', ']', '>')
+        }
 
         if (!incoming.isNullOrEmpty() && isHttpUrl(incoming)) {
             pageUrl = incoming
@@ -182,12 +187,36 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun refreshButtons() {
-        download.isEnabled = directVideoUrl != null && folderUri != null
+        // The user can press Download as soon as a shared URL and destination
+        // folder exist. Stream discovery may still be in progress.
+        download.isEnabled = pageUrl != null && folderUri != null
     }
 
     private fun downloadVideo() {
-        val source = directVideoUrl ?: return
         val folder = folderUri ?: return
+        val page = pageUrl ?: return
+
+        if (directVideoUrl == null) {
+            download.isEnabled = false
+            status.text = "Finding the video stream…"
+            webView.loadUrl(page)
+
+            lifecycleScope.launch {
+                delay(7000)
+                if (directVideoUrl == null) {
+                    withContext(Dispatchers.Main) {
+                        status.text = "Facebook did not expose a downloadable public video stream."
+                        progressText.text = "Unable to download this video."
+                        refreshButtons()
+                    }
+                } else {
+                    downloadVideo()
+                }
+            }
+            return
+        }
+
+        val source = directVideoUrl
 
         download.isEnabled = false
         progress.visibility = View.VISIBLE
@@ -244,14 +273,14 @@ class MainActivity : AppCompatActivity() {
                     progress.progress = 100
                     progressText.text = "Saved successfully."
                     status.text = "The video was saved to your selected folder."
-                    download.isEnabled = true
+                    refreshButtons()
                     Toast.makeText(this@MainActivity, "Video saved", Toast.LENGTH_LONG).show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     progressText.text = "Download failed."
                     status.text = e.message ?: "The video could not be downloaded."
-                    download.isEnabled = directVideoUrl != null && folderUri != null
+                    refreshButtons()
                 }
             }
         }
