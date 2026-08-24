@@ -72,21 +72,55 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun receiveIntent(intent: Intent?) {
-        val raw = when (intent?.action) {
-            Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
-            else -> intent?.dataString
-        }?.trim()
+        val candidates = mutableListOf<String>()
 
-        val incoming = raw?.let {
-            Regex("""https?://[^\\s]+""").find(it)?.value?.trimEnd('.', ',', ')', ']', '>')
+        // Facebook/Android may place the URL in any of these locations.
+        intent?.getStringExtra(Intent.EXTRA_TEXT)?.let { candidates.add(it) }
+        intent?.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()?.let { candidates.add(it) }
+        intent?.dataString?.let { candidates.add(it) }
+
+        intent?.clipData?.let { clip ->
+            for (i in 0 until clip.itemCount) {
+                clip.getItemAt(i).text?.toString()?.let { candidates.add(it) }
+                clip.getItemAt(i).uri?.toString()?.let { candidates.add(it) }
+            }
         }
 
-        if (!incoming.isNullOrEmpty() && isHttpUrl(incoming)) {
+        // Prefer an actual Facebook URL containing a path/id over the
+        // Facebook home page, if multiple values were supplied.
+        val urls = candidates.flatMap { text ->
+            Regex("""https?://[^\s"'<>]+""").findAll(text)
+                .map { it.value.trimEnd('.', ',', ')', ']', '>') }
+                .toList()
+        }
+
+        val incoming = urls
+            .filter { isHttpUrl(it) }
+            .sortedByDescending {
+                when {
+                    it.contains("facebook.com") && it.length > "https://www.facebook.com/".length -> 3
+                    it.contains("fb.watch") -> 3
+                    it.contains("facebook.com") -> 1
+                    else -> 2
+                }
+            }
+            .firstOrNull()
+
+        if (!incoming.isNullOrEmpty()) {
             pageUrl = incoming
             urlView.text = incoming
             urlView.visibility = View.VISIBLE
-            status.text = "Opening the shared Facebook link…"
+
+            directVideoUrl = null
+            status.text = "Facebook link received. Finding the video…"
+            refreshButtons()
             resolve(incoming)
+        } else {
+            status.text = "No usable Facebook video link was received."
+            urlView.visibility = View.GONE
+            pageUrl = null
+            directVideoUrl = null
+            refreshButtons()
         }
     }
 
