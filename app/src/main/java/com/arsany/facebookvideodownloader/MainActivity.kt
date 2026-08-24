@@ -194,13 +194,25 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun looksLikeVideo(u: String): Boolean {
-        val x = u.lowercase()
-        return x.contains(".mp4") ||
-               x.contains(".m3u8") ||
-               x.contains("video") && (x.contains("fbcdn") || x.contains("facebook"))
+    val x = u.lowercase()
+
+    // A normal Facebook webpage is not a downloadable video file.
+    if (x.startsWith("https://www.facebook.com/") ||
+        x.startsWith("https://facebook.com/") ||
+        x.startsWith("https://m.facebook.com/")) {
+        return false
     }
 
-    private fun decodeJs(s: String): String {
+    // Accept only actual media resources.
+    return x.contains(".mp4") ||
+           x.contains(".m3u8") ||
+           (x.contains("fbcdn") &&
+            (x.contains("video") ||
+             x.contains("playable") ||
+             x.contains("/v/")))
+}
+
+private fun decodeJs(s: String): String {
         var x = s
         if (x.startsWith("\"") && x.endsWith("\"")) x = x.substring(1, x.length - 1)
         return x.replace("\\\"", "\"")
