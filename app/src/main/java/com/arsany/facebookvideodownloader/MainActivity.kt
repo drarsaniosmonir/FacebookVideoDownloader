@@ -553,7 +553,7 @@ class MainActivity : AppCompatActivity() {
 
                     setRequestProperty(
                         "User-Agent",
-                        webView.settings.userAgentString
+                        withContext(Dispatchers.Main) { withContext(Dispatchers.Main) { webView.settings.userAgentString } }
                     )
 
                     setRequestProperty(
