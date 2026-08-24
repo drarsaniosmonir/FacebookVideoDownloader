@@ -152,17 +152,36 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onPageFinished(view: WebView, url: String) {
+                // Facebook share/r/ URLs normally redirect to the actual
+                // post/video page. Keep the final URL instead of the share URL.
+                if (url.startsWith("https://www.facebook.com/") ||
+                    url.startsWith("https://facebook.com/") ||
+                    url.startsWith("https://m.facebook.com/")) {
+                    pageUrl = url
+                    runOnUiThread {
+                        urlView.text = url
+                    }
+                }
+
                 view.evaluateJavascript(
                     "(function(){return document.documentElement.innerHTML;})()"
                 ) { result ->
                     val html = decodeJs(result)
                     val found = findVideoUrl(html)
+
                     if (found != null) {
                         directVideoUrl = found
                         status.text = "Video found. Choose a folder and download."
                         refreshButtons()
+                    } else {
+                        title = findTitle(html) ?: title
+
+                        if (url.contains("/login") || url.contains("checkpoint")) {
+                            status.text = "Facebook requires login to access this video."
+                        } else if (url != pageUrl) {
+                            status.text = "Following Facebook video page…"
+                        }
                     }
-                    title = findTitle(html) ?: "facebook_video"
                 }
             }
         }
@@ -197,7 +216,12 @@ class MainActivity : AppCompatActivity() {
             "\"browser_native_hd_url\":\"(.*?)\"",
             "\"browser_native_sd_url\":\"(.*?)\"",
             "\"playable_url_quality_hd\":\"(.*?)\"",
-            "\"playable_url\":\"(.*?)\""
+            "\"playable_url\":\"(.*?)\"",
+            "\"hd_src\":\"(.*?)\"",
+            "\"sd_src\":\"(.*?)\"",
+            "\"contentUrl\":\"(.*?)\"",
+            "<meta[^>]+property=[\\\"]og:video[\\\"][^>]+content=[\\\"](https?://.*?)[\\\"]",
+            "<meta[^>]+property=[\\\"]og:video:url[\\\"][^>]+content=[\\\"](https?://.*?)[\\\"]"
         )
         for (pattern in patterns) {
             val m = Pattern.compile(pattern).matcher(html)
