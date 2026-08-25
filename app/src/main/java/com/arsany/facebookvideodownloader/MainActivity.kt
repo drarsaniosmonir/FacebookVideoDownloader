@@ -168,8 +168,7 @@ class MainActivity : AppCompatActivity() {
                 val candidate = request.url.toString()
                 if (!request.isForMainFrame &&
                     request.method.equals("GET", ignoreCase = true) &&
-                    looksLikeVideo(candidate) &&
-                    request.requestHeaders["Range"].isNullOrBlank()
+                    looksLikeVideo(candidate)
                 ) {
                     addVideoCandidate(candidate, fromWebResource = true)
                 }
@@ -333,14 +332,28 @@ class MainActivity : AppCompatActivity() {
 
     private fun looksLikeVideo(url: String): Boolean {
         val x = url.lowercase(Locale.US)
+
         if (x.startsWith("blob:") || x.startsWith("data:")) return false
         if (isFacebookPage(x)) return false
-        if (x.contains("thumbnail") || x.contains("profile_pic") || x.contains("avatar")) return false
+
+        // Reject obvious images/profile/thumbnail resources.
+        if (x.contains(".jpg") ||
+            x.contains(".jpeg") ||
+            x.contains(".png") ||
+            x.contains(".webp") ||
+            x.contains("thumbnail") ||
+            x.contains("profile_pic") ||
+            x.contains("avatar")) {
+            return false
+        }
+
+        // Facebook CDN media requests are often not named "video".
         return x.contains(".mp4") ||
             x.contains(".m3u8") ||
             x.contains("playable_url") ||
             x.contains("browser_native") ||
-            (x.contains("fbcdn") && (x.contains("video") || x.contains("playable") || x.contains("/v/")))
+            x.contains("fbcdn") ||
+            x.contains("video_redirect")
     }
 
     private fun decodeJavascriptString(value: String): String {
