@@ -511,7 +511,23 @@ class MainActivity : AppCompatActivity() {
                         if (localFile.length() <= 0L) throw Exception("empty response")
 
                         withContext(Dispatchers.Main) { progressText.text = "Checking video…" }
-                        validateVideoFile(localFile)
+
+                        try {
+                            validateVideoFile(localFile)
+                        } catch (e: Exception) {
+                            val header = ByteArray(32)
+                            val headerCount = localFile.inputStream().use { it.read(header) }
+                            val hex = header.copyOf(maxOf(0, headerCount))
+                                .joinToString(" ") { "%02X".format(it) }
+
+                            throw Exception(
+                                "Video validation failed. " +
+                                "URL=${connectionFinalUrlForDiagnostic(candidate)} " +
+                                "Size=${localFile.length()} bytes. " +
+                                "Header=$hex. " +
+                                "Reason=${e.message ?: "unknown"}"
+                            )
+                        }
 
                         val document = DocumentFile.fromTreeUri(this@MainActivity, folder)
                             ?: throw Exception("The selected folder is unavailable.")
@@ -550,6 +566,14 @@ class MainActivity : AppCompatActivity() {
                     refreshButtons()
                 }
             }
+        }
+    }
+
+    private fun connectionFinalUrlForDiagnostic(candidate: String): String {
+        return try {
+            URL(candidate).toString()
+        } catch (_: Exception) {
+            candidate
         }
     }
 
