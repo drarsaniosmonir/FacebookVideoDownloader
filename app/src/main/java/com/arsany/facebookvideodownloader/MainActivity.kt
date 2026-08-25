@@ -348,14 +348,31 @@ class MainActivity : AppCompatActivity() {
         if (x.length >= 2 && x.startsWith("\"") && x.endsWith("\"")) {
             x = x.substring(1, x.length - 1)
         }
-        return x
+
+        x = x
             .replace("\\\"", "\"")
+            .replace("\\\\", "\\")
             .replace("\\/", "/")
             .replace("\\n", "\n")
             .replace("\\r", "\r")
+            .replace("\\t", "\t")
+
+        // Facebook frequently escapes media URLs as \\uXXXX.
+        val unicodePattern = Regex("""\\u([0-9a-fA-F]{4})""")
+        repeat(3) {
+            x = unicodePattern.replace(x) { m ->
+                m.groupValues[1].toInt(16).toChar().toString()
+            }
+        }
+
+        return x
+            .replace("\\/", "/")
+            .replace("\\\"", "\"")
             .replace("\\u0026", "&")
-            .replace("\\u003C", "<")
-            .replace("\\u003E", ">")
+            .replace("\\u003D", "=")
+            .replace("\\u003F", "?")
+            .replace("\\u002F", "/")
+            .replace("\\u003A", ":")
             .replace("\\u0025", "%")
     }
 
@@ -428,8 +445,19 @@ class MainActivity : AppCompatActivity() {
                             setRequestProperty("Accept-Encoding", "identity")
                             setRequestProperty("Referer", page)
                             setRequestProperty("Origin", "https://www.facebook.com")
-                            CookieManager.getInstance().getCookie(page)?.takeIf { it.isNotBlank() }?.let {
-                                setRequestProperty("Cookie", it)
+                            // Use cookies for both the Facebook page and the media/CDN URL.
+                            val pageCookies =
+                                CookieManager.getInstance().getCookie(page).orEmpty()
+                            val mediaCookies =
+                                CookieManager.getInstance().getCookie(candidate).orEmpty()
+
+                            val cookies = listOf(pageCookies, mediaCookies)
+                                .filter { it.isNotBlank() }
+                                .distinct()
+                                .joinToString("; ")
+
+                            if (cookies.isNotBlank()) {
+                                setRequestProperty("Cookie", cookies)
                             }
                             connect()
                         }
